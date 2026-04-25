@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Numen — Unit Converter</title>
+
+  <!-- PWA meta -->
+  <meta name="description" content="A clean, minimal unit converter." />
+  <meta name="theme-color" content="#FAF8F3" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Numen" />
+
+  <!-- App icon (inline SVG so no extra files needed) -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23FAF8F3'/%3E%3Ctext x='90' y='128' font-family='Georgia, serif' font-style='italic' font-size='120' text-anchor='middle' fill='%231A1A1A'%3EN%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23FAF8F3'/%3E%3Ctext x='90' y='128' font-family='Georgia, serif' font-style='italic' font-size='120' text-anchor='middle' fill='%231A1A1A'%3EN%3C/text%3E%3C/svg%3E" />
+
+  <!-- Web app manifest (inline) -->
+  <link rel="manifest" href='data:application/manifest+json;utf8,{"name":"Numen","short_name":"Numen","start_url":"./","display":"standalone","background_color":"%23FAF8F3","theme_color":"%23FAF8F3","orientation":"portrait","icons":[{"src":"data:image/svg+xml;utf8,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 180 180%27%3E%3Crect width=%27180%27 height=%27180%27 rx=%2740%27 fill=%27%2523FAF8F3%27/%3E%3Ctext x=%2790%27 y=%27128%27 font-family=%27Georgia, serif%27 font-style=%27italic%27 font-size=%27120%27 text-anchor=%27middle%27 fill=%27%25231A1A1A%27%3EN%3C/text%3E%3C/svg%3E","sizes":"any","type":"image/svg+xml"}]}' />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React + Babel for in-browser JSX -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    html, body { margin: 0; padding: 0; background: #FAF8F3; overscroll-behavior: none; }
+    body { font-family: 'Geist', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .font-display { font-family: 'Instrument Serif', serif; font-weight: 400; letter-spacing: -0.01em; }
+    .font-body { font-family: 'Geist', sans-serif; }
+    .font-num { font-family: 'Instrument Serif', serif; font-feature-settings: 'tnum' 1; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .scrollbar-none::-webkit-scrollbar { display: none; }
+    .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fadeUp { animation: fadeUp 0.35s ease-out; }
+    @keyframes spinSwap { to { transform: rotate(180deg); } }
+    .swap-anim { animation: spinSwap 0.32s ease-out; }
+    @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .sheet-anim { animation: sheetUp 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+    .safe-top { padding-top: max(env(safe-area-inset-top, 0px), 12px); }
+    .safe-bottom { padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px); }
+    .h-dvh { height: 100vh; height: 100dvh; }
+    /* prevent pull-to-refresh on iOS */
+    .no-bounce { overscroll-behavior-y: contain; }
+  </style>
+</head>
+<body class="font-body">
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    /* ---------- Inline icon components (replacing lucide-react) ---------- */
+    const I = (props) => {
+      const { size = 16, fill = "none", children, ...rest } = props;
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...rest}>
+          {children}
+        </svg>
+      );
+    };
+    const ArrowUpDown = (p) => <I {...p}><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></I>;
+    const Copy = (p) => <I {...p}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></I>;
+    const Star = ({ filled, ...p }) => <I fill={filled ? "currentColor" : "none"} {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></I>;
+    const Check = (p) => <I {...p}><polyline points="20 6 9 17 4 12"/></I>;
+    const DeleteIcon = (p) => <I {...p}><path d="M21 5H8l-7 7 7 7h13a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></I>;
+    const Trash2 = (p) => <I {...p}><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></I>;
+    const ChevronDown = (p) => <I {...p}><polyline points="6 9 12 15 18 9"/></I>;
+    const X = (p) => <I {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></I>;
+    const Clock = (p) => <I {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></I>;
+
+    /* ---------- Storage wrapper (localStorage) ---------- */
+    const storage = {
+      get(key) {
+        try { const v = localStorage.getItem(key); return v == null ? null : { value: v }; }
+        catch { return null; }
+      },
+      set(key, value) {
+        try { localStorage.setItem(key, value); } catch {}
+      },
+    };
+
+    /* ---------- Categories ---------- */
+    const CATEGORIES = {
+      length: {
+        name: "Length",
+        units: {
+          mm: { name: "Millimeter", symbol: "mm", factor: 0.001 },
+          cm: { name: "Centimeter", symbol: "cm", factor: 0.01 },
+          m: { name: "Meter", symbol: "m", factor: 1 },
+          km: { name: "Kilometer", symbol: "km", factor: 1000 },
+          in: { name: "Inch", symbol: "in", factor: 0.0254 },
+          ft: { name: "Foot", symbol: "ft", factor: 0.3048 },
+          yd: { name: "Yard", symbol: "yd", factor: 0.9144 },
+          mi: { name: "Mile", symbol: "mi", factor: 1609.344 },
+        },
+        defaults: ["m", "ft"],
+      },
+      weight: {
+        name: "Weight",
+        units: {
+          mg: { name: "Milligram", symbol: "mg", factor: 0.001 },
+          g: { name: "Gram", symbol: "g", factor: 1 },
+          kg: { name: "Kilogram", symbol: "kg", factor: 1000 },
+          oz: { name: "Ounce", symbol: "oz", factor: 28.3495 },
+          lb: { name: "Pound", symbol: "lb", factor: 453.592 },
+          st: { name: "Stone", symbol: "st", factor: 6350.29 },
+        },
+        defaults: ["kg", "lb"],
+      },
+      temp: {
+        name: "Temp",
+        units: {
+          C: { name: "Celsius", symbol: "°C" },
+          F: { name: "Fahrenheit", symbol: "°F" },
+          K: { name: "Kelvin", symbol: "K" },
+        },
+        defaults: ["C", "F"],
+      },
+      volume: {
+        name: "Volume",
+        units: {
+          ml: { name: "Milliliter", symbol: "ml", factor: 1 },
+          l: { name: "Liter", symbol: "L", factor: 1000 },
+          tsp: { name: "Teaspoon", symbol: "tsp", factor: 4.92892 },
+          tbsp: { name: "Tablespoon", symbol: "tbsp", factor: 14.7868 },
+          floz: { name: "Fluid Ounce", symbol: "fl oz", factor: 29.5735 },
+          cup: { name: "Cup", symbol: "cup", factor: 236.588 },
+          pt: { name: "Pint", symbol: "pt", factor: 473.176 },
+          qt: { name: "Quart", symbol: "qt", factor: 946.353 },
+          gal: { name: "Gallon", symbol: "gal", factor: 3785.41 },
+        },
+        defaults: ["l", "gal"],
+      },
+      cooking: {
+        name: "Cooking",
+        units: {
+          drop: { name: "Drop", symbol: "drop", factor: 0.0648 },
+          smidgen: { name: "Smidgen", symbol: "smdg", factor: 0.154 },
+          pinch: { name: "Pinch", symbol: "pinch", factor: 0.308 },
+          dash: { name: "Dash", symbol: "dash", factor: 0.616 },
+          tsp: { name: "Teaspoon", symbol: "tsp", factor: 4.92892 },
+          tbsp: { name: "Tablespoon", symbol: "tbsp", factor: 14.7868 },
+          floz: { name: "Fluid Ounce", symbol: "fl oz", factor: 29.5735 },
+          quarter_cup: { name: "Quarter Cup", symbol: "¼ cup", factor: 59.1471 },
+          third_cup: { name: "Third Cup", symbol: "⅓ cup", factor: 78.8627 },
+          half_cup: { name: "Half Cup", symbol: "½ cup", factor: 118.294 },
+          cup_us: { name: "Cup (US)", symbol: "cup", factor: 236.588 },
+          cup_metric: { name: "Cup (Metric)", symbol: "cup m", factor: 250 },
+          stick: { name: "Stick of Butter", symbol: "stick", factor: 113.398 },
+          pt: { name: "Pint", symbol: "pt", factor: 473.176 },
+          qt: { name: "Quart", symbol: "qt", factor: 946.353 },
+          ml: { name: "Milliliter", symbol: "ml", factor: 1 },
+          l: { name: "Liter", symbol: "L", factor: 1000 },
+        },
+        defaults: ["cup_us", "ml"],
+      },
+    };
+
+    function convert(value, fromUnit, toUnit, category) {
+      if (value === "" || value === "-" || value === "." || isNaN(parseFloat(value))) return "";
+      const num = parseFloat(value);
+      if (category === "temp") {
+        let c;
+        if (fromUnit === "C") c = num;
+        else if (fromUnit === "F") c = ((num - 32) * 5) / 9;
+        else c = num - 273.15;
+        let result;
+        if (toUnit === "C") result = c;
+        else if (toUnit === "F") result = (c * 9) / 5 + 32;
+        else result = c + 273.15;
+        return formatNumber(result);
+      }
+      const f = CATEGORIES[category].units[fromUnit].factor;
+      const t = CATEGORIES[category].units[toUnit].factor;
+      return formatNumber((num * f) / t);
+    }
+
+    function formatNumber(n) {
+      if (!isFinite(n)) return "";
+      const abs = Math.abs(n);
+      if (abs !== 0 && (abs < 0.0001 || abs >= 1e12)) return n.toExponential(4);
+      let decimals = 4;
+      if (abs >= 100) decimals = 2;
+      if (abs >= 10000) decimals = 1;
+      if (abs >= 1000000) decimals = 0;
+      if (abs < 1 && abs > 0) decimals = 6;
+      const rounded = parseFloat(n.toFixed(decimals));
+      const parts = rounded.toString().split(".");
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      return parts.join(".");
+    }
+
+    /* ---------- App ---------- */
+    function App() {
+      const [tab, setTab] = useState("convert");
+      const [category, setCategory] = useState("length");
+      const [fromUnit, setFromUnit] = useState("m");
+      const [toUnit, setToUnit] = useState("ft");
+      const [input, setInput] = useState("1");
+      const [picker, setPicker] = useState(null);
+      const [favorites, setFavorites] = useState([]);
+      const [recents, setRecents] = useState([]);
+      const [copied, setCopied] = useState(false);
+      const [loaded, setLoaded] = useState(false);
+      const [swapping, setSwapping] = useState(false);
+      const recentTimer = useRef(null);
+
+      useEffect(() => {
+        try {
+          const fav = storage.get("favorites");
+          if (fav) setFavorites(JSON.parse(fav.value));
+        } catch {}
+        try {
+          const rec = storage.get("recents");
+          if (rec) setRecents(JSON.parse(rec.value));
+        } catch {}
+        try {
+          const last = storage.get("lastState");
+          if (last) {
+            const s = JSON.parse(last.value);
+            if (s.category && CATEGORIES[s.category]) {
+              setCategory(s.category);
+              setFromUnit(s.fromUnit);
+              setToUnit(s.toUnit);
+            }
+          }
+        } catch {}
+        setLoaded(true);
+      }, []);
+
+      useEffect(() => {
+        if (!loaded) return;
+        storage.set("lastState", JSON.stringify({ category, fromUnit, toUnit }));
+      }, [category, fromUnit, toUnit, loaded]);
+
+      const onCategoryChange = (cat) => {
+        if (cat === category) return;
+        setCategory(cat);
+        const [a, b] = CATEGORIES[cat].defaults;
+        setFromUnit(a);
+        setToUnit(b);
+      };
+
+      const result = useMemo(
+        () => convert(input, fromUnit, toUnit, category),
+        [input, fromUnit, toUnit, category]
+      );
+
+      useEffect(() => {
+        if (!loaded) return;
+        if (input === "" || input === "0" || result === "") return;
+        if (recentTimer.current) clearTimeout(recentTimer.current);
+        recentTimer.current = setTimeout(() => {
+          const entry = {
+            id: Date.now(),
+            category, fromUnit, toUnit,
+            fromValue: input,
+            toValue: result,
+            timestamp: Date.now(),
+          };
+          setRecents((prev) => {
+            const filtered = prev.filter(
+              (r) => !(r.category === category && r.fromUnit === fromUnit && r.toUnit === toUnit && r.fromValue === input)
+            );
+            const next = [entry, ...filtered].slice(0, 30);
+            storage.set("recents", JSON.stringify(next));
+            return next;
+          });
+        }, 1200);
+        return () => recentTimer.current && clearTimeout(recentTimer.current);
+      }, [input, fromUnit, toUnit, category, result, loaded]);
+
+      const handleKey = (k) => {
+        if (k === "del") {
+          setInput((v) => (v.length <= 1 ? "0" : v.slice(0, -1)));
+          return;
+        }
+        if (k === ".") {
+          if (!input.includes(".")) setInput(input + ".");
+          return;
+        }
+        if (input === "0") setInput(k);
+        else if (input === "-0") setInput("-" + k);
+        else setInput(input + k);
+      };
+
+      const handleSwap = () => {
+        setSwapping(true);
+        setTimeout(() => setSwapping(false), 320);
+        setFromUnit(toUnit);
+        setToUnit(fromUnit);
+        if (result !== "") {
+          const clean = String(result).replace(/,/g, "");
+          setInput(clean);
+        }
+      };
+
+      const handleCopy = async () => {
+        if (result === "") return;
+        try { await navigator.clipboard.writeText(String(result)); }
+        catch {
+          // Fallback for older browsers
+          const ta = document.createElement("textarea");
+          ta.value = String(result);
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand("copy"); } catch {}
+          document.body.removeChild(ta);
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1400);
+      };
+
+      const isFavorited = useMemo(
+        () => favorites.some((f) => f.category === category && f.fromUnit === fromUnit && f.toUnit === toUnit),
+        [favorites, category, fromUnit, toUnit]
+      );
+
+      const toggleFavorite = () => {
+        setFavorites((prev) => {
+          let next;
+          if (isFavorited) {
+            next = prev.filter((f) => !(f.category === category && f.fromUnit === fromUnit && f.toUnit === toUnit));
+          } else {
+            next = [{ id: Date.now(), category, fromUnit, toUnit }, ...prev].slice(0, 30);
+          }
+          storage.set("favorites", JSON.stringify(next));
+          return next;
+        });
+      };
+
+      const loadPair = (item) => {
+        setCategory(item.category);
+        setFromUnit(item.fromUnit);
+        setToUnit(item.toUnit);
+        if (item.fromValue) setInput(String(item.fromValue).replace(/,/g, ""));
+        setTab("convert");
+      };
+
+      const removeFavorite = (id) => {
+        setFavorites((prev) => {
+          const next = prev.filter((f) => f.id !== id);
+          storage.set("favorites", JSON.stringify(next));
+          return next;
+        });
+      };
+
+      const clearRecents = () => {
+        setRecents([]);
+        storage.set("recents", JSON.stringify([]));
+      };
+
+      const fromUnitObj = CATEGORIES[category].units[fromUnit];
+      const toUnitObj = CATEGORIES[category].units[toUnit];
+
+      return (
+        <div className="w-full mx-auto relative h-dvh flex flex-col no-bounce" style={{ maxWidth: 460, background: "#FAF8F3", color: "#1A1A1A" }}>
+          {/* Header */}
+          <div className="safe-top px-7 pb-2 flex items-baseline justify-between">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.2em] opacity-50">Numen</div>
+              <h1 className="font-display text-[32px] leading-none mt-1">
+                {tab === "convert" && <>Converter<span className="italic opacity-60">.</span></>}
+                {tab === "recent" && <>Recent<span className="italic opacity-60">.</span></>}
+                {tab === "saved" && <>Saved<span className="italic opacity-60">.</span></>}
+              </h1>
+            </div>
+            {tab === "recent" && recents.length > 0 && (
+              <button onClick={clearRecents} className="text-xs opacity-60 hover:opacity-100 flex items-center gap-1">
+                <Trash2 size={12} /> Clear
+              </button>
+            )}
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-hidden relative">
+            {tab === "convert" && (
+              <div className="h-full flex flex-col fadeUp" key="convert">
+                <div className="px-7 pt-3 pb-4 flex gap-1.5 overflow-x-auto scrollbar-none">
+                  {Object.entries(CATEGORIES).map(([key, cat]) => (
+                    <button
+                      key={key}
+                      onClick={() => onCategoryChange(key)}
+                      className="px-4 py-1.5 rounded-full text-xs font-medium tracking-wide transition-all whitespace-nowrap"
+                      style={category === key
+                        ? { background: "#1A1A1A", color: "#FAF8F3" }
+                        : { background: "rgba(0,0,0,0.04)", color: "#1A1A1A" }}
+                    >{cat.name}</button>
+                  ))}
+                </div>
+
+                <div className="mx-5 rounded-3xl px-6 py-5 relative" style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.05)" }}>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-[0.2em] opacity-50">From</span>
+                      <button onClick={() => setPicker("from")} className="flex items-center gap-1.5 text-sm font-medium px-2.5 py-1 rounded-full hover:bg-black/5">
+                        {fromUnitObj.name}
+                        <ChevronDown size={12} className="opacity-50" />
+                      </button>
+                    </div>
+                    <div className="mt-1.5 flex items-baseline gap-2">
+                      <span className="font-num text-[44px] leading-tight tabular truncate">{input === "" ? "0" : input}</span>
+                      <span className="font-display italic text-xl opacity-40">{fromUnitObj.symbol}</span>
+                    </div>
+                  </div>
+
+                  <div className="relative my-3">
+                    <div className="h-px w-full" style={{ background: "rgba(0,0,0,0.06)" }} />
+                    <button onClick={handleSwap} className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-90" style={{ background: "#1A1A1A", color: "#FAF8F3" }}>
+                      <ArrowUpDown size={16} className={swapping ? "swap-anim" : ""} />
+                    </button>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-[0.2em] opacity-50">To</span>
+                      <button onClick={() => setPicker("to")} className="flex items-center gap-1.5 text-sm font-medium px-2.5 py-1 rounded-full hover:bg-black/5">
+                        {toUnitObj.name}
+                        <ChevronDown size={12} className="opacity-50" />
+                      </button>
+                    </div>
+                    <div className="mt-1.5 flex items-baseline gap-2">
+                      <span className="font-num text-[44px] leading-tight tabular truncate" style={{ color: "#5C4A2A" }}>{result === "" ? "—" : result}</span>
+                      <span className="font-display italic text-xl opacity-40">{toUnitObj.symbol}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mx-5 mt-3 flex gap-2">
+                  <button onClick={toggleFavorite} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-xs font-medium transition-all active:scale-95"
+                    style={{ background: isFavorited ? "#1A1A1A" : "rgba(0,0,0,0.04)", color: isFavorited ? "#FAF8F3" : "#1A1A1A" }}>
+                    <Star size={13} filled={isFavorited} />
+                    {isFavorited ? "Saved" : "Save pair"}
+                  </button>
+                  <button onClick={handleCopy} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-xs font-medium transition-all active:scale-95"
+                    style={{ background: "rgba(0,0,0,0.04)", color: "#1A1A1A" }}>
+                    {copied ? <Check size={13} /> : <Copy size={13} />}
+                    {copied ? "Copied" : "Copy result"}
+                  </button>
+                </div>
+
+                <div className="flex-1 flex items-end px-5 pb-3 pt-4">
+                  <div className="grid grid-cols-3 gap-1.5 w-full">
+                    {["1","2","3","4","5","6","7","8","9"].map((k) => (
+                      <KeyButton key={k} onClick={() => handleKey(k)}>{k}</KeyButton>
+                    ))}
+                    <KeyButton onClick={() => handleKey(".")} subtle>.</KeyButton>
+                    <KeyButton onClick={() => handleKey("0")}>0</KeyButton>
+                    <KeyButton onClick={() => handleKey("del")} subtle><DeleteIcon size={18} /></KeyButton>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab === "recent" && (
+              <div className="h-full overflow-y-auto px-5 fadeUp scrollbar-none" key="recent">
+                {recents.length === 0
+                  ? <EmptyState icon={<Clock size={20} />} text="No recent conversions yet" />
+                  : <div className="flex flex-col gap-1.5 pb-4">{recents.map((r) => <HistoryRow key={r.id} item={r} onTap={() => loadPair(r)} showValues />)}</div>}
+              </div>
+            )}
+
+            {tab === "saved" && (
+              <div className="h-full overflow-y-auto px-5 fadeUp scrollbar-none" key="saved">
+                {favorites.length === 0
+                  ? <EmptyState icon={<Star size={20} />} text="Tap “Save pair” to bookmark a conversion" />
+                  : <div className="flex flex-col gap-1.5 pb-4">{favorites.map((f) => <HistoryRow key={f.id} item={f} onTap={() => loadPair(f)} onRemove={() => removeFavorite(f.id)} />)}</div>}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom nav */}
+          <div className="px-6 pt-2 safe-bottom" style={{ background: "linear-gradient(to top, #FAF8F3 70%, rgba(250,248,243,0))" }}>
+            <div className="flex items-center justify-around rounded-full py-2 px-2" style={{ background: "rgba(0,0,0,0.04)" }}>
+              <NavTab active={tab === "convert"} onClick={() => setTab("convert")} label="Convert" />
+              <NavTab active={tab === "recent"} onClick={() => setTab("recent")} label="Recent" />
+              <NavTab active={tab === "saved"} onClick={() => setTab("saved")} label="Saved" />
+            </div>
+          </div>
+
+          {picker && (
+            <UnitPicker
+              category={category}
+              current={picker === "from" ? fromUnit : toUnit}
+              onPick={(u) => {
+                if (picker === "from") {
+                  if (u === toUnit) setToUnit(fromUnit);
+                  setFromUnit(u);
+                } else {
+                  if (u === fromUnit) setFromUnit(toUnit);
+                  setToUnit(u);
+                }
+                setPicker(null);
+              }}
+              onClose={() => setPicker(null)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    function KeyButton({ children, onClick, subtle }) {
+      return (
+        <button onClick={onClick} className="font-display text-[26px] py-3 rounded-2xl transition-all active:scale-95 select-none"
+          style={{ background: subtle ? "rgba(0,0,0,0.03)" : "#FFFFFF", color: "#1A1A1A", border: "1px solid rgba(0,0,0,0.04)" }}>
+          <span className="flex items-center justify-center">{children}</span>
+        </button>
+      );
+    }
+
+    function NavTab({ active, onClick, label }) {
+      return (
+        <button onClick={onClick} className="flex-1 py-1.5 rounded-full text-xs font-medium transition-all"
+          style={active
+            ? { background: "#FAF8F3", color: "#1A1A1A", boxShadow: "0 2px 6px rgba(0,0,0,0.06)" }
+            : { background: "transparent", color: "rgba(26,26,26,0.5)" }}>
+          {label}
+        </button>
+      );
+    }
+
+    function EmptyState({ icon, text }) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center text-center px-8 -mt-10">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ background: "rgba(0,0,0,0.04)", color: "rgba(26,26,26,0.4)" }}>
+            {icon}
+          </div>
+          <p className="font-display italic text-base opacity-50 leading-snug">{text}</p>
+        </div>
+      );
+    }
+
+    function HistoryRow({ item, onTap, onRemove, showValues }) {
+      const cat = CATEGORIES[item.category];
+      const fromU = cat.units[item.fromUnit];
+      const toU = cat.units[item.toUnit];
+      return (
+        <div className="flex items-center justify-between rounded-2xl px-4 py-3 transition-all active:scale-[0.98]" style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.05)" }}>
+          <button onClick={onTap} className="flex-1 text-left">
+            <div className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-0.5">{cat.name}</div>
+            <div className="font-display text-lg leading-tight">
+              {showValues ? (
+                <>
+                  <span className="tabular">{item.fromValue}</span>
+                  <span className="italic opacity-50 text-sm"> {fromU.symbol}</span>
+                  <span className="opacity-30 mx-2">→</span>
+                  <span className="tabular" style={{ color: "#5C4A2A" }}>{item.toValue}</span>
+                  <span className="italic opacity-50 text-sm"> {toU.symbol}</span>
+                </>
+              ) : (
+                <>{fromU.name}<span className="opacity-30 mx-2">→</span>{toU.name}</>
+              )}
+            </div>
+          </button>
+          {onRemove && (
+            <button onClick={onRemove} className="ml-2 p-1.5 rounded-full opacity-40 hover:opacity-100">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    function UnitPicker({ category, current, onPick, onClose }) {
+      const cat = CATEGORIES[category];
+      return (
+        <>
+          <div onClick={onClose} className="absolute inset-0 z-10" style={{ background: "rgba(20,15,5,0.4)" }} />
+          <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-[32px] sheet-anim" style={{ background: "#FAF8F3", maxHeight: "70%", paddingBottom: "max(env(safe-area-inset-bottom, 0px), 24px)" }}>
+            <div className="flex justify-center pt-2 pb-1">
+              <div className="w-10 h-1 rounded-full" style={{ background: "rgba(0,0,0,0.15)" }} />
+            </div>
+            <div className="px-7 pt-2 pb-3 flex items-baseline justify-between">
+              <h3 className="font-display text-2xl">Select unit</h3>
+              <button onClick={onClose} className="text-xs opacity-50 hover:opacity-100">Cancel</button>
+            </div>
+            <div className="overflow-y-auto px-5 scrollbar-none" style={{ maxHeight: "calc(70vh - 100px)" }}>
+              {Object.entries(cat.units).map(([key, u]) => (
+                <button key={key} onClick={() => onPick(key)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl active:bg-black/5"
+                  style={{ background: key === current ? "rgba(0,0,0,0.04)" : "transparent" }}>
+                  <div className="flex items-baseline gap-2 text-left">
+                    <span className="font-display text-lg">{u.name}</span>
+                    <span className="font-display italic text-sm opacity-50">{u.symbol}</span>
+                  </div>
+                  {key === current && <Check size={16} />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
